@@ -1,7 +1,7 @@
 {
-  "name": "token-saver",
-  "version": "0.2.0",
-  "description": "Caveman replies (pick a level) plus Headroom-style tool-output compression, with a pane tallying tokens saved",
+  "name": "ct-token-saver",
+  "version": "0.3.0",
+  "description": "Caveman-style terse replies (pick a level) plus Headroom-style tool-output compression, with a pane tallying tokens saved",
   "types": "./types/index.d.ts",
   "license": "MIT",
   "author": {

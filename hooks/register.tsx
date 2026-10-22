@@ -4,8 +4,8 @@ import type { EngineInterface, Register } from 'claude-code'
 import type { CavemanLevel, Compression, HeadroomMode, Savings } from '../types'
 import { compress, slice, tokens } from './compress'
 
-const PLUGIN = 'token-saver'
-const PANE = 'token-saver'
+const PLUGIN = 'ct-token-saver'
+const PANE = 'ct-token-saver'
 const PANE_TITLE = 'Token saver'
 const RETRIEVE = 'headroom_retrieve'
 const RETRIEVE_TOOL = `mcp__${PLUGIN}__${RETRIEVE}`
@@ -43,11 +43,11 @@ const ZERO: Savings = {
   headroomRetrieved: 0,
 }
 
-const level = atom({ plugin: 'token-saver', key: 'level' } as const, 'full' as CavemanLevel)
-const headroom = atom({ plugin: 'token-saver', key: 'headroom' } as const, 'safe' as HeadroomMode)
-const session = atom({ plugin: 'token-saver', key: 'session' } as const, ZERO)
-const lifetime = atom({ plugin: 'token-saver', key: 'lifetime' } as const, ZERO)
-const recent = atom({ plugin: 'token-saver', key: 'recent' } as const, [] as Compression[])
+const level = atom({ plugin: 'ct-token-saver', key: 'level' } as const, 'full' as CavemanLevel)
+const headroom = atom({ plugin: 'ct-token-saver', key: 'headroom' } as const, 'safe' as HeadroomMode)
+const session = atom({ plugin: 'ct-token-saver', key: 'session' } as const, ZERO)
+const lifetime = atom({ plugin: 'ct-token-saver', key: 'lifetime' } as const, ZERO)
+const recent = atom({ plugin: 'ct-token-saver', key: 'recent' } as const, [] as Compression[])
 
 const LEVEL_RULES: Record<Exclude<CavemanLevel, 'off'>, string> = {
   lite: 'Level LITE: no filler or hedging. Keep articles and full sentences. Professional but tight.',
@@ -119,7 +119,7 @@ async function openPane($: EngineInterface): Promise<string> {
 }
 
 // One place that answers "caveman <level>", "headroom <mode>" and
-// "tokens saved", whichever way they arrive: slash command, plain text, tool.
+// "tokens saved" (each optionally led by "ct-"), whichever way they arrive: slash command, plain text, tool.
 async function runSetting(
   $: EngineInterface,
   what: 'caveman' | 'headroom' | 'tokens-saved',
@@ -159,7 +159,7 @@ async function runSetting(
 
 // Plain-text forms, for apps whose chat box only knows skills after "/":
 // "caveman ultra", "!caveman ultra", "headroom safe", "tokens saved".
-const TYPED = /^\s*[!/]?\s*(caveman|headroom|tokens[ -]?saved|token saver)\b\s*([\w-]*)\s*$/i
+const TYPED = /^\s*[!/]?\s*(?:ct[ -])?(caveman|headroom|tokens[ -]?saved|token[ -]saver|(?<=ct[ -])tokens)\b\s*([\w-]*)\s*$/i
 
 export const register: Register = on => {
   // Originals of lossy compressions, so the model can get them back.
@@ -198,7 +198,7 @@ export const register: Register = on => {
     await $.tool.register({
       name: 'settings',
       description:
-        'Token saver mod: set the caveman reply level and/or the headroom tool-output compression mode, or show tokens saved. Use when the user asks to change caveman level, headroom mode, or see token savings.',
+        'ct-token-saver mod: set the caveman reply level and/or the headroom tool-output compression mode, or show tokens saved. Use when the user asks to change caveman level, headroom mode, or see token savings.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -233,13 +233,13 @@ export const register: Register = on => {
       ...e,
       context: [
         ...(e.context ?? []),
-        `[token-saver mod] Already done, do not call any tool. Reply with exactly this line and nothing else:\n${answer}`,
+        `[ct-token-saver mod] Already done, do not call any tool. Reply with exactly this line and nothing else:\n${answer}`,
       ],
     })
   })
 
   // And in plain words ("set caveman to lite"): the model calls this tool.
-  on('tool.call', { tool: /^mcp__token-saver__settings$/ }, async ($, e) => {
+  on('tool.call', { tool: /^mcp__ct-token-saver__settings$/ }, async ($, e) => {
     const input = e as unknown as Record<string, unknown>
     const parts: string[] = []
     if (typeof input.caveman === 'string') parts.push(await runSetting($, 'caveman', input.caveman))
@@ -333,7 +333,7 @@ export const register: Register = on => {
     next(e),
   )
 
-  on('tool.call', { tool: /^mcp__token-saver__headroom_retrieve$/ }, async ($, e) => {
+  on('tool.call', { tool: /^mcp__ct-token-saver__headroom_retrieve$/ }, async ($, e) => {
     // The tool's arguments ride on the event beside `tool` and `tool_use_id`.
     const input = e as unknown as Record<string, unknown>
     const id = String(input.id ?? '')

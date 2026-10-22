@@ -1,5 +1,13 @@
 {
-  "name": "token-saver",
-  "owner": { "name": "Steve Fernandes" },
-  "plugins": [{ "name": "token-saver", "source": "./" }]
+  "name": "ct-token-saver",
+  "owner": {
+    "name": "Steve Fernandes"
+  },
+  "plugins": [
+    {
+      "name": "ct-token-saver",
+      "source": "./"
+    }
+  ],
+  "description": "CredibleThought plugins"
 }

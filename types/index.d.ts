@@ -29,7 +29,7 @@ export type Compression = {
 
 declare module 'claude-code' {
   interface PluginState {
-    'token-saver': {
+    'ct-token-saver': {
       level: CavemanLevel
       headroom: HeadroomMode
       session: Savings
