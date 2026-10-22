@@ -180,20 +180,6 @@ export const register: Register = on => {
       await update($, lifetime, () => ({ ...ZERO, ...(storedAll as Partial<Savings>) }))
     }
 
-    await $.command.register({
-      name: 'caveman',
-      description: 'Set caveman level: off, lite, full, ultra, wenyan-lite, wenyan-full, wenyan-ultra',
-      argumentHint: '[level]',
-    })
-    await $.command.register({
-      name: 'headroom',
-      description: 'Set tool-output compression: off, safe, aggressive',
-      argumentHint: '[mode]',
-    })
-    await $.command.register({
-      name: 'tokens-saved',
-      description: 'Open the token saver pane',
-    })
     await $.tool.register({
       name: RETRIEVE,
       description:
@@ -216,8 +202,8 @@ export const register: Register = on => {
       inputSchema: {
         type: 'object',
         properties: {
-          caveman: { type: 'string', enum: [...LEVELS] },
-          headroom: { type: 'string', enum: [...MODES] },
+          caveman: { type: 'string', description: `Caveman level: ${LEVELS.join(', ')}. Empty string: report the current level.` },
+          headroom: { type: 'string', description: `Headroom mode: ${MODES.join(', ')}. Empty string: report the current mode.` },
           show: { type: 'boolean', description: 'Open the savings pane and report totals' },
         },
       },
@@ -229,19 +215,8 @@ export const register: Register = on => {
     return next(e)
   })
 
-  // --- Slash commands -------------------------------------------------------
-
-  on('command.run', { command: 'caveman' }, async ($, e) => ({
-    text: await runSetting($, 'caveman', e.args),
-  }))
-
-  on('command.run', { command: 'headroom' }, async ($, e) => ({
-    text: await runSetting($, 'headroom', e.args),
-  }))
-
-  on('command.run', { command: 'tokens-saved' }, async $ => ({
-    text: await runSetting($, 'tokens-saved', ''),
-  }))
+  // Slash forms come from the plugin's skills (skills/*/SKILL.md), which
+  // every app lists after "/"; they call the settings tool below.
 
   // The same settings typed as a plain message. The setting is applied here;
   // the prompt still goes through, with the answer attached, so the reply

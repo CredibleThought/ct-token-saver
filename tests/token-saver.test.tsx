@@ -20,7 +20,6 @@ const noisy =
 
 function base(on: any) {
   mock.store(on)
-  on('command.register', () => ({ value: { command: 'x' } }))
   on('tool.register', () => ({ value: { tool: 'mcp__token-saver__headroom_retrieve' } }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('ui.status', () => ({ value: {} }))
@@ -35,7 +34,7 @@ function base(on: any) {
 test('headroom compresses Bash output and the pane counts it', async ($, on) => {
   base(on)
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
-  await $.command.run({ command: 'headroom', args: 'aggressive' } as any)
+  await $.tool.call({ tool: 'mcp__token-saver__settings', headroom: 'aggressive' } as any)
 
   const ran = await $.tool.call({ tool: 'Bash', command: 'make' })
   const out = (ran.result as { stdout: string }).stdout
@@ -65,7 +64,7 @@ test('headroom compresses Bash output and the pane counts it', async ($, on) => 
 test('caveman adds its prompt section at the chosen level and estimates savings', async ($, on) => {
   base(on)
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
-  await $.command.run({ command: 'caveman', args: 'ultra' } as any)
+  await $.tool.call({ tool: 'mcp__token-saver__settings', caveman: 'ultra' } as any)
 
   const composed = await $.prompt.compose({ model: 'm', promptModel: 'm', surfaces: [], tools: [], outputStyle: null, traits: [] } as any)
   const section = composed.sections.find(s => s.id === 'token-saver:caveman')
