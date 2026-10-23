@@ -2,7 +2,8 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { CavemanLevel, Compression, HeadroomMode, Savings } from '../types'
-import { compress, slice, tokens } from './compress'
+import { slice, tokens } from './compress'
+import { isCompressible, labelOf, squeeze } from './tools'
 
 const PLUGIN = 'ct-token-saver'
 const PANE = 'ct-token-saver'
@@ -285,49 +286,41 @@ export const register: Register = on => {
     return done
   })
 
-  // --- Headroom: compress Bash output, serve retrievals ----------------------
+  // --- Headroom: compress tool output, serve retrievals ----------------------
 
-  on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
+  on('tool.call', async ($, e, next) => {
     const ran = await next(e)
+    const tool = String(e.tool)
+    if (!isCompressible(tool) || ran.deny !== undefined || ran.isError === true) return ran
     const m = await read($, headroom)
-    if (m === 'off' || ran.deny !== undefined || ran.isError === true) return ran
-    const r = ran.result
-    if (r === undefined || r.isImage === true || r.backgroundTaskId !== undefined) return ran
+    if (m === 'off') return ran
 
-    const out = compress(r.stdout ?? '', m)
-    const err = compress(r.stderr ?? '', m)
-    const before = tokens(r.stdout ?? '') + tokens(r.stderr ?? '')
-    let after = tokens(out.text) + tokens(err.text)
-    if (after >= before) return ran
+    const id = `hr${nextId}`
+    const note = `\n[headroom: output compressed, id=${id}. Call ${RETRIEVE_TOOL} for the omitted parts]`
+    const c = squeeze(tool, ran.result, m, note)
+    if (c === undefined || c.after >= c.before) return ran
 
-    let stdout = out.text
-    let stderr = err.text
-    const id = `hr${nextId++}`
-    if (out.isLossy || err.isLossy) {
-      stash.set(id, [r.stdout, r.stderr].filter(Boolean).join('\n--- stderr ---\n'))
+    nextId++
+    if (c.isLossy) {
+      stash.set(id, c.original)
       if (stash.size > 30) stash.delete(stash.keys().next().value as string)
-      const note = `\n[headroom: output compressed, id=${id}. Call ${RETRIEVE_TOOL} for the omitted parts]`
-      if (out.isLossy) stdout += note
-      else stderr += note
-      after += tokens(note)
     }
-
     const entry: Compression = {
       id,
-      tool: 'Bash',
-      label: (e.description ?? e.command).slice(0, 60),
-      before,
-      after,
+      tool,
+      label: labelOf(tool, e as unknown as Record<string, unknown>),
+      before: c.before,
+      after: c.after,
     }
     await update($, recent, list => [entry, ...list].slice(0, 8))
     await bump($, s => ({
       ...s,
       headroomCalls: s.headroomCalls + 1,
-      headroomBefore: s.headroomBefore + before,
-      headroomAfter: s.headroomAfter + after,
+      headroomBefore: s.headroomBefore + c.before,
+      headroomAfter: s.headroomAfter + c.after,
     }))
 
-    return { result: { ...r, stdout, stderr } }
+    return { result: c.result as never }
   }).catch(($, e, next) =>
     // Compression failed: hand the model the untouched output.
     next(e),

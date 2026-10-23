@@ -34,7 +34,13 @@ Asking in plain words ("set caveman to lite") works too. Typed forms are answere
 ## What it does
 
 - **Caveman-style replies** add a terse-reply instruction to the system prompt at the level you pick. Savings are an estimate: actual output tokens against what the reply would likely have cost (`full` uses caveman's measured 65% cut; the other levels are estimates).
-- **Headroom-style compression** shrinks Bash output before Claude reads it. `safe` (default) strips ANSI codes, progress-bar redraws, trailing spaces, blank-line runs and repeated lines, and minifies JSON. `aggressive` also drops the middle of very long output and most items of big JSON arrays, always keeping error and warning lines; the original is kept so Claude can fetch it with the `headroom_retrieve` tool, and those tokens are subtracted from the savings.
+- **Headroom-style compression** shrinks tool output before Claude reads it:
+  - **Bash** output: `safe` (default) strips ANSI codes, progress-bar redraws, trailing spaces, blank-line runs and repeated lines, and minifies JSON.
+  - **Grep** results: lines from the same file are grouped under one path; long file lists are grouped by folder.
+  - **Glob** file lists: grouped by folder.
+  - **WebFetch** and **connector (MCP) output**, such as browser page text: the same clean-up as Bash.
+  - `aggressive` also drops the middle of very long output and most items of big JSON arrays, always keeping error and warning lines. The original is kept so Claude can fetch it with the `headroom_retrieve` tool, and those tokens are subtracted from the savings.
+  - Never touched: file reads and edits (Read, Edit, Write) and document connectors (Docs, Sheets, Drive, Notion, Confluence, Word, Excel), where Claude needs the exact text to edit.
 - **The pane** shows session and all-time totals, level and mode buttons, and recent compressions. The status line shows the running total. Where the app can't draw panes (cloud chats in the desktop app), use the commands above.
 
 Your level, mode and all-time total persist across sessions.

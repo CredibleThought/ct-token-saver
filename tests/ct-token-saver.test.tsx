@@ -103,3 +103,52 @@ test('plain-text settings apply and attach the answer for the reply', async ($, 
   const tool = await $.tool.call({ tool: 'mcp__ct-token-saver__settings', caveman: 'ultra' } as any)
   expect(String(tool.result)).toBe('Caveman set to ultra.')
 })
+
+const files = Array.from({ length: 30 }, (_, i) => `/home/me/projects/app/src/components/widget${i}.tsx`)
+const grepContent = files.flatMap((f, i) => [1, 2, 3].map(n => `${f}:${i * 10 + n}:  const value = useThing(${n})`)).join('\n')
+const page = Array.from({ length: 200 }, (_, i) => (i === 100 ? 'Error: element not found' : `menu item ${i % 4}`)).join('\n')
+
+test('headroom covers Grep, Glob and connector output, never Read', async ($, on) => {
+  mock.store(on)
+  on('tool.register', () => ({ value: { tool: 'x' } }))
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('ui.status', () => ({ value: undefined }))
+  on('session.start', (_: unknown, e: { cwd: string }) => ({ cwd: e.cwd }))
+  on('tool.call', { tool: 'Grep' }, (_: unknown, e: { output_mode?: string }) =>
+    e.output_mode === 'content'
+      ? { result: { mode: 'content', numFiles: 30, filenames: files, content: grepContent } }
+      : { result: { mode: 'files_with_matches', numFiles: 30, filenames: files } },
+  )
+  on('tool.call', { tool: 'Glob' }, () => ({
+    result: { durationMs: 1, numFiles: 30, filenames: files, truncated: false },
+  }))
+  on('tool.call', { tool: 'Read' }, () => ({
+    result: { type: 'text', file: { filePath: '/a', content: '   spaced   \n\n\n\n' + 'x\n'.repeat(400), numLines: 400, startLine: 1, totalLines: 400 } },
+  }))
+  on('tool.call', (_: unknown, e: { tool: string }) =>
+    e.tool === 'mcp__browser__get_page_text'
+      ? { result: { content: [{ type: 'text', text: page }] } }
+      : { result: {} },
+  )
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.tool.call({ tool: 'mcp__ct-token-saver__settings', headroom: 'aggressive' } as any)
+
+  const grep = await $.tool.call({ tool: 'Grep', pattern: 'useThing', output_mode: 'content' } as any)
+  const content = (grep.result as { content: string }).content
+  expect(content.length).toBeLessThan(grepContent.length)
+  expect(content).toContain('/home/me/projects/app/src/components/widget7.tsx\n  71: ')
+
+  const glob = await $.tool.call({ tool: 'Glob', pattern: '**/*.tsx' } as any)
+  const names = (glob.result as { filenames: string[] }).filenames
+  expect(names.length).toBe(1)
+  expect(names[0]).toContain('/home/me/projects/app/src/components/: widget0.tsx, widget1.tsx')
+
+  const web = await $.tool.call({ tool: 'mcp__browser__get_page_text' } as any)
+  const text = (web.result as { content: { text: string }[] }).content[0]?.text ?? ''
+  expect(text.length).toBeLessThan(page.length)
+  expect(text).toContain('Error: element not found')
+  expect(text).toContain('mcp__ct-token-saver__headroom_retrieve')
+
+  const read = await $.tool.call({ tool: 'Read', file_path: '/a' } as any)
+  expect((read.result as { file: { content: string } }).file.content.startsWith('   spaced   \n\n\n\n')).toBe(true)
+})
