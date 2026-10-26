@@ -21,6 +21,17 @@ claude plugin install ct-token-saver@ct-token-saver
 
 In the Claude desktop app: **Customize → Plugins → Add → Add marketplace**, enter `CredibleThought/ct-token-saver`, then install **ct-token-saver**.
 
+## Upgrade
+
+From a shell, refresh the marketplace so it sees the new version, then update the plugin:
+
+```
+claude plugin marketplace update ct-token-saver
+claude plugin update ct-token-saver@ct-token-saver
+```
+
+Restart Claude Code (or start a new session in the desktop app) to load the new version. Your caveman level, headroom mode and all-time totals carry over.
+
 ## Commands
 
 | Slash command | Typed (no slash) | Does |
@@ -41,7 +52,7 @@ Asking in plain words ("set caveman to lite") works too. Typed forms are answere
   - **WebFetch** and **connector (MCP) output**, such as browser page text: the same clean-up as Bash.
   - `aggressive` also drops the middle of very long output and most items of big JSON arrays, always keeping error and warning lines. The original is kept so Claude can fetch it with the `headroom_retrieve` tool, and those tokens are subtracted from the savings.
   - Never touched: file reads and edits (Read, Edit, Write) and document connectors (Docs, Sheets, Drive, Notion, Confluence, Word, Excel), where Claude needs the exact text to edit.
-- **The pane** shows session and all-time totals, level and mode buttons, and recent compressions. The status line shows the running total. Where the app can't draw panes (cloud chats in the desktop app), use the commands above.
+- **The pane** shows session and all-time totals, level and mode buttons, the prompt cache hit rate (session and last turn), and recent compressions. The status line shows the running total and the session's cache hit rate. Where the app can't draw panes (cloud chats in the desktop app), use the commands above.
 
 Your level, mode and all-time total persist across sessions.
 

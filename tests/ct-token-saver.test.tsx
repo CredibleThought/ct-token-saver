@@ -18,11 +18,14 @@ const noisy =
   '\x1b[32mok\x1b[0m   \n' +
   Array.from({ length: 300 }, (_, i) => (i === 150 ? 'ERROR: boom' : `line ${i % 3 === 0 ? 'same' : i}`)).join('\n')
 
-function base(on: any) {
+function base(on: any, statuses: string[] = []) {
   mock.store(on)
   on('tool.register', () => ({ value: { tool: 'mcp__ct-token-saver__headroom_retrieve' } }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
-  on('ui.status', () => ({ value: {} }))
+  on('ui.status', (_: unknown, e: { text?: string }) => {
+    if (e.text !== undefined) statuses.push(e.text)
+    return { value: {} }
+  })
   on('session.start', (_: unknown, e: { cwd: string }) => ({ cwd: e.cwd }))
   on('tool.call', { tool: 'Bash' }, () => ({
     result: { stdout: noisy, stderr: '', interrupted: false },
@@ -151,4 +154,28 @@ test('headroom covers Grep, Glob and connector output, never Read', async ($, on
 
   const read = await $.tool.call({ tool: 'Read', file_path: '/a' } as any)
   expect((read.result as { file: { content: string } }).file.content.startsWith('   spaced   \n\n\n\n')).toBe(true)
+})
+
+test('prompt cache hit rate shows in the pane and status, and resets', async ($, on) => {
+  const statuses: string[] = []
+  base(on, statuses)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  expect(statuses[statuses.length - 1]).toContain('cache —')
+
+  const turn = (read: number, written: number, uncached: number) =>
+    $.turn.complete({
+      answer: 'ok', durationMs: 1, isAborted: false, turnId: 't', reason: 'answer',
+      usage: { input_tokens: uncached, output_tokens: 10, cache_read_input_tokens: read, cache_creation_input_tokens: written, model: 'm' },
+    } as any)
+  await turn(0, 900, 100)
+  await turn(9000, 500, 500)
+
+  // Session: 9000 read of 11000 input. Last turn: 9000 of 10000.
+  expect(statuses[statuses.length - 1]).toContain('cache 82%')
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await ui.find({ type: 'Text', text: /Prompt cache · 82% hit/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /2 turns · last turn 90%/ })).toBeDefined()
+  await ui.press({ key: 'reset' })
+  expect(await ui.find({ type: 'Text', text: /Prompt cache · — hit/ })).toBeDefined()
+  await ui.unmount()
 })

@@ -19,6 +19,16 @@ export type Savings = {
   headroomRetrieved: number
 }
 
+// Prompt-cache input tokens for the main thread, summed over the session,
+// plus the last turn's hit rate.
+export type Cache = {
+  turns: number
+  read: number
+  written: number
+  uncached: number
+  lastPct: number | null
+}
+
 export type Compression = {
   id: string
   tool: string
@@ -35,6 +45,7 @@ declare module 'claude-code' {
       session: Savings
       lifetime: Savings
       recent: Compression[]
+      cache: Cache
     }
   }
 }

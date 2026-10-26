@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { CavemanLevel, Compression, HeadroomMode, Savings } from '../types'
+import type { Cache, CavemanLevel, Compression, HeadroomMode, Savings } from '../types'
 import { slice, tokens } from './compress'
 import { isCompressible, labelOf, squeeze } from './tools'
 
@@ -49,6 +49,17 @@ const headroom = atom({ plugin: 'ct-token-saver', key: 'headroom' } as const, 's
 const session = atom({ plugin: 'ct-token-saver', key: 'session' } as const, ZERO)
 const lifetime = atom({ plugin: 'ct-token-saver', key: 'lifetime' } as const, ZERO)
 const recent = atom({ plugin: 'ct-token-saver', key: 'recent' } as const, [] as Compression[])
+
+const NO_CACHE: Cache = { turns: 0, read: 0, written: 0, uncached: 0, lastPct: null }
+const cache = atom({ plugin: 'ct-token-saver', key: 'cache' } as const, NO_CACHE)
+
+// Share of input tokens the prompt cache served; null before any input.
+function hitPct(read: number, written: number, uncached: number): number | null {
+  const total = read + written + uncached
+  return total > 0 ? Math.round((read / total) * 100) : null
+}
+const pct = (p: number | null) => (p === null ? '—' : `${p}%`)
+const sessionPct = (c: Cache) => hitPct(c.read, c.written, c.uncached)
 
 const LEVEL_RULES: Record<Exclude<CavemanLevel, 'off'>, string> = {
   lite: 'Level LITE: no filler or hedging. Keep articles and full sentences. Professional but tight.',
@@ -99,7 +110,8 @@ async function refreshStatus($: EngineInterface) {
   const l = await read($, level)
   const m = await read($, headroom)
   const s = await read($, session)
-  $.ui.status(`caveman ${l} · headroom ${m} · saved ~${fmt(totalSaved(s))} tok`)
+  const c = await read($, cache)
+  $.ui.status(`caveman ${l} · headroom ${m} · saved ~${fmt(totalSaved(s))} tok · cache ${pct(sessionPct(c))}`)
 }
 
 async function setLevel($: EngineInterface, l: CavemanLevel) {
@@ -271,6 +283,17 @@ export const register: Register = on => {
 
   on('turn.complete', async ($, e, next) => {
     const done = await next(e)
+    const u = e.usage
+    if (e.agentId === undefined && u !== undefined) {
+      await update($, cache, c => ({
+        turns: c.turns + 1,
+        read: c.read + u.cache_read_input_tokens,
+        written: c.written + u.cache_creation_input_tokens,
+        uncached: c.uncached + u.input_tokens,
+        lastPct: hitPct(u.cache_read_input_tokens, u.cache_creation_input_tokens, u.input_tokens) ?? c.lastPct,
+      }))
+      await refreshStatus($)
+    }
     const l = await read($, level)
     const out = e.usage?.output_tokens ?? 0
     if (e.agentId === undefined && l !== 'off' && out > 0) {
@@ -353,6 +376,7 @@ export const register: Register = on => {
     const s = await read($, session)
     const all = await read($, lifetime)
     const list = await read($, recent)
+    const c = await read($, cache)
     const hSaved = headroomSaved(s)
     const hPct = s.headroomBefore > 0 ? Math.round((hSaved / s.headroomBefore) * 100) : 0
 
@@ -390,6 +414,14 @@ export const register: Register = on => {
           )}
         </Box>
 
+        <Box flexDirection="column">
+          <Text bold>Prompt cache · {pct(sessionPct(c))} hit</Text>
+          <Text dimColor>
+            {c.turns} turns · last turn {pct(c.lastPct)} · {fmt(c.read)} read · {fmt(c.written)} written ·{' '}
+            {fmt(c.uncached)} uncached
+          </Text>
+        </Box>
+
         {list.length > 0 && (
           <Box flexDirection="column">
             <Text bold>Recent compressions</Text>
@@ -407,6 +439,7 @@ export const register: Register = on => {
           onPress={async () => {
             await update($, session, () => ZERO)
             await update($, recent, () => [])
+            await update($, cache, () => NO_CACHE)
             await refreshStatus($)
           }}
         />
